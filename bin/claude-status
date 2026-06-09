@@ -1,0 +1,89 @@
+#!/bin/bash
+# bin/claude-status — shows usage for all Claude Code accounts detected in ~/.claude-*
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+source "$SCRIPT_DIR/lib/common.sh"
+
+# ─── Render helpers ───────────────────────────────────────────────────────────
+
+print_header() {
+  echo ""
+  echo -e "${CYAN}${BOLD}╔══════════════════════════════════╗${RESET}"
+  echo -e "${CYAN}${BOLD}║      Claude Account Status       ║${RESET}"
+  echo -e "${CYAN}${BOLD}╚══════════════════════════════════╝${RESET}"
+  echo ""
+}
+
+render_account() {
+  local label="$1"
+  local config_dir="$2"
+
+  local active_marker=""
+  if is_active "$config_dir"; then
+    active_marker=" ${GREEN}${BOLD}[active]${RESET}"
+  fi
+
+  echo -e "${BOLD}▸ ${label}${RESET}${active_marker}"
+  echo -e "  ${DIM}${config_dir}${RESET}"
+
+  local token
+  token=$(get_token "$config_dir")
+
+  if [ -z "$token" ]; then
+    echo -e "  ${YELLOW}⚠ Not authenticated${RESET} — run: ${BOLD}claude-switch ${label}${RESET} then ${BOLD}/login${RESET}"
+    echo ""
+    return
+  fi
+
+  echo -ne "  ${DIM}Fetching...${RESET}\r"
+  local raw
+  raw=$(fetch_usage "$token")
+
+  local parsed
+  parsed=$(parse_usage "$raw")
+
+  if [ "$parsed" = "ERROR" ] || [ -z "$parsed" ]; then
+    echo -e "  ${RED}✗ Failed to fetch usage data (token expired?)${RESET}        "
+    echo ""
+    return
+  fi
+
+  IFS='|' read -r pct plan _active reset_in <<< "$parsed"
+
+  local bar_color
+  bar_color=$(color_for_pct "$pct")
+  local bar
+  bar=$(render_bar "$pct")
+
+  # Clear the "Fetching..." line
+  echo -ne "                     \r"
+
+  echo -e "  ${bar_color}${bar}${RESET} ${BOLD}${pct}%${RESET} used"
+  echo -e "  ${DIM}Plan:${RESET}  ${plan}"
+  echo -e "  ${DIM}Reset:${RESET} in ${reset_in}"
+  echo ""
+}
+
+# ─── Main ─────────────────────────────────────────────────────────────────────
+
+print_header
+
+accounts=()
+while IFS= read -r line; do accounts+=("$line"); done < <(get_accounts)
+
+if [ ${#accounts[@]} -eq 0 ]; then
+  echo -e "  ${YELLOW}No accounts found.${RESET}"
+  echo ""
+  echo -e "  Create a directory using the format ${BOLD}~/.claude-<name>${RESET}"
+  echo -e "  then authenticate with: ${BOLD}CLAUDE_CONFIG_DIR=~/.claude-<name> claude${RESET}"
+  echo ""
+  exit 0
+fi
+
+for account in "${accounts[@]}"; do
+  IFS=':' read -r label config_dir <<< "$account"
+  render_account "$label" "$config_dir"
+done
+
+echo -e "${DIM}  Tip: claude-switch <name> to change the active account${RESET}"
+echo ""

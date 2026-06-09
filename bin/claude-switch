@@ -1,0 +1,187 @@
+#!/bin/bash
+# bin/claude-switch — activates a Claude Code account by pointing ~/.claude → ~/.claude-<name>
+# Usage:
+#   claude-switch              → interactive menu
+#   claude-switch <name>       → activate directly
+#   claude-switch --list       → list available accounts
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+source "$SCRIPT_DIR/lib/common.sh"
+
+CLAUDE_DEFAULT="$HOME/.claude"
+
+# ─── Activate account ─────────────────────────────────────────────────────────
+activate_account() {
+  local label="$1"
+  local config_dir="$2"
+
+  # Back up ~/.claude if it's a real directory (not a symlink)
+  if [ -d "$CLAUDE_DEFAULT" ] && [ ! -L "$CLAUDE_DEFAULT" ]; then
+    local backup="$HOME/.claude-default-backup"
+    echo -e "${YELLOW}⚠ ~/.claude is a real directory (not a symlink).${RESET}"
+    echo -e "  Backing up to ${BOLD}${backup}${RESET}..."
+    mv "$CLAUDE_DEFAULT" "$backup"
+  fi
+
+  # Remove previous symlink
+  [ -L "$CLAUDE_DEFAULT" ] && rm "$CLAUDE_DEFAULT"
+
+  # Create new symlink
+  ln -s "$config_dir" "$CLAUDE_DEFAULT"
+
+  echo -e "${GREEN}${BOLD}✓ Account activated: ${label}${RESET}"
+  echo -e "  ${DIM}~/.claude → ${config_dir}${RESET}"
+  echo ""
+  echo -e "  You can now run ${BOLD}claude${RESET} directly, or run ${BOLD}claude-status${RESET} to verify."
+  echo ""
+}
+
+# ─── List accounts ────────────────────────────────────────────────────────────
+list_accounts() {
+  accounts=()
+while IFS= read -r line; do accounts+=("$line"); done < <(get_accounts)
+
+  if [ ${#accounts[@]} -eq 0 ]; then
+    echo -e "${YELLOW}No accounts found (~/.claude-*).${RESET}"
+    return 1
+  fi
+
+  echo ""
+  echo -e "${BOLD}Available accounts:${RESET}"
+  echo ""
+
+  local i=1
+  for account in "${accounts[@]}"; do
+    IFS=':' read -r label config_dir <<< "$account"
+    local active_marker=""
+    if is_active "$config_dir"; then
+      active_marker=" ${GREEN}${BOLD}← active${RESET}"
+    fi
+    echo -e "  ${CYAN}${i})${RESET} ${BOLD}${label}${RESET}${active_marker}"
+    echo -e "     ${DIM}${config_dir}${RESET}"
+    ((i++))
+  done
+
+  echo ""
+  return 0
+}
+
+# ─── Interactive menu ─────────────────────────────────────────────────────────
+interactive_menu() {
+  accounts=()
+while IFS= read -r line; do accounts+=("$line"); done < <(get_accounts)
+
+  if [ ${#accounts[@]} -eq 0 ]; then
+    echo -e "${YELLOW}No accounts found (~/.claude-*).${RESET}"
+    echo ""
+    echo -e "Create a directory first: ${BOLD}mkdir ~/.claude-<name>${RESET}"
+    exit 1
+  fi
+
+  echo ""
+  echo -e "${CYAN}${BOLD}╔══════════════════════════════════╗${RESET}"
+  echo -e "${CYAN}${BOLD}║       Claude Account Switch      ║${RESET}"
+  echo -e "${CYAN}${BOLD}╚══════════════════════════════════╝${RESET}"
+  echo ""
+  echo -e "${BOLD}Select an account:${RESET}"
+  echo ""
+
+  local i=1
+  for account in "${accounts[@]}"; do
+    IFS=':' read -r label config_dir <<< "$account"
+    local active_marker=""
+    if is_active "$config_dir"; then
+      active_marker=" ${GREEN}${BOLD}[active]${RESET}"
+    fi
+    echo -e "  ${CYAN}${i})${RESET} ${BOLD}${label}${RESET}${active_marker}"
+    ((i++))
+  done
+
+  echo ""
+  echo -ne "${BOLD}Number (1-${#accounts[@]}): ${RESET}"
+  read -r choice
+
+  if ! [[ "$choice" =~ ^[0-9]+$ ]] || [ "$choice" -lt 1 ] || [ "$choice" -gt ${#accounts[@]} ]; then
+    echo -e "${RED}Invalid selection.${RESET}"
+    exit 1
+  fi
+
+  local selected="${accounts[$((choice - 1))]}"
+  IFS=':' read -r label config_dir <<< "$selected"
+  activate_account "$label" "$config_dir"
+}
+
+# ─── Remove account ──────────────────────────────────────────────────────────
+remove_account() {
+  local label="$1"
+  local config_dir="$HOME/.claude-${label}"
+
+  if [ ! -d "$config_dir" ]; then
+    echo -e "${RED}✗ Directory not found: ${config_dir}${RESET}"
+    exit 1
+  fi
+
+  if is_active "$config_dir"; then
+    echo -e "${RED}✗ Cannot remove the active account.${RESET}"
+    echo -e "  Switch to another account first: ${BOLD}claude-switch <name>${RESET}"
+    exit 1
+  fi
+
+  echo -e "${YELLOW}⚠ This will permanently delete ${BOLD}${config_dir}${RESET}${YELLOW} and all its contents.${RESET}"
+  echo -ne "  Type the account name to confirm: "
+  read -r confirm
+
+  if [ "$confirm" != "$label" ]; then
+    echo -e "${RED}Aborted.${RESET}"
+    exit 1
+  fi
+
+  rm -rf "$config_dir"
+  echo -e "${GREEN}${BOLD}✓ Account removed: ${label}${RESET}"
+}
+
+# ─── Main ─────────────────────────────────────────────────────────────────────
+
+case "${1:-}" in
+  --list|-l)
+    list_accounts
+    ;;
+
+  --remove|-r)
+    if [ -z "${2:-}" ]; then
+      echo -e "${RED}✗ Usage: claude-switch --remove <name>${RESET}"
+      exit 1
+    fi
+    remove_account "$2"
+    ;;
+
+  --help|-h)
+    echo ""
+    echo -e "${BOLD}Usage:${RESET}"
+    echo -e "  claude-switch                    Interactive menu"
+    echo -e "  claude-switch <name>             Activate account directly"
+    echo -e "  claude-switch --list             List available accounts"
+    echo -e "  claude-switch --remove <name>    Permanently delete an account"
+    echo ""
+    ;;
+
+  "")
+    interactive_menu
+    ;;
+
+  *)
+    # Direct mode: claude-switch personal
+    label="$1"
+    config_dir="$HOME/.claude-${label}"
+
+    if [ ! -d "$config_dir" ]; then
+      echo -e "${RED}✗ Directory not found: ${config_dir}${RESET}"
+      echo ""
+      echo -e "  Available accounts:"
+      list_accounts
+      exit 1
+    fi
+
+    activate_account "$label" "$config_dir"
+    ;;
+esac
