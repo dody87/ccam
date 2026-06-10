@@ -26,7 +26,7 @@ Claude Code stores credentials in the macOS Keychain under a key derived from th
 
 `claude-status` reads the OAuth token for each detected account and queries `api.anthropic.com/api/oauth/usage` to show real-time utilization.
 
-`claude-switch` activates an account by pointing `~/.claude` (a symlink) to the target config directory, so the bare `claude` command always uses whichever account is active.
+`claude-switch` activates an account by pointing `~/.claude` (a symlink) to the target config directory. The installed shell function reads that symlink and sets `CLAUDE_CONFIG_DIR`, so the bare `claude` command uses whichever account is active.
 
 Account discovery is automatic: any directory matching `~/.claude-*` is treated as an account. No config files to maintain.
 
@@ -91,7 +91,7 @@ claude-switch work
 claude-switch --list
 ```
 
-Switching creates a symlink `~/.claude → ~/.claude-<name>`, so the bare `claude` command immediately picks up the new account without any extra flags.
+Switching creates a symlink `~/.claude → ~/.claude-<name>`. The installed shell function uses its target as `CLAUDE_CONFIG_DIR`, so the bare `claude` command immediately picks up the selected account.
 
 ### Use a specific account directly
 
