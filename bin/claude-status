@@ -26,11 +26,33 @@ render_account() {
   echo -e "${BOLD}▸ ${label}${RESET}${active_marker}"
   echo -e "  ${DIM}${config_dir}${RESET}"
 
-  local token
-  token=$(get_token "$config_dir")
+  local credentials
+  local credentials_error=0
+  credentials=$(get_credentials "$config_dir") || credentials_error=$?
 
-  if [ -z "$token" ]; then
-    echo -e "  ${YELLOW}⚠ Not authenticated${RESET} — run: ${BOLD}claude-switch ${label}${RESET} then ${BOLD}/login${RESET}"
+  if [ "$credentials_error" -eq 1 ]; then
+    echo -e "  ${YELLOW}⚠ Not authenticated${RESET} — run: ${BOLD}claude-${label}${RESET} then ${BOLD}/login${RESET}"
+    echo ""
+    return
+  elif [ "$credentials_error" -ne 0 ]; then
+    echo -e "  ${RED}✗ Unable to read credentials from Keychain${RESET}"
+    echo ""
+    return
+  fi
+
+  local credential_info
+  credential_info=$(parse_credentials "$credentials")
+
+  local auth_status plan token
+  IFS='|' read -r auth_status plan token <<< "$credential_info"
+
+  if [ "$auth_status" = "expired" ]; then
+    echo -e "  ${YELLOW}⚠ Session expired${RESET} — run ${BOLD}claude-${label}${RESET} to refresh it"
+    echo -e "  ${DIM}Plan:${RESET}  ${plan}"
+    echo ""
+    return
+  elif [ "$auth_status" != "valid" ]; then
+    echo -e "  ${YELLOW}⚠ Not authenticated${RESET} — run: ${BOLD}claude-${label}${RESET} then ${BOLD}/login${RESET}"
     echo ""
     return
   fi
@@ -43,12 +65,13 @@ render_account() {
   parsed=$(parse_usage "$raw")
 
   if [ "$parsed" = "ERROR" ] || [ -z "$parsed" ]; then
-    echo -e "  ${RED}✗ Failed to fetch usage data (token expired?)${RESET}        "
+    echo -e "  ${RED}✗ Failed to fetch usage data${RESET}        "
     echo ""
     return
   fi
 
-  IFS='|' read -r pct plan _active reset_in <<< "$parsed"
+  local pct reset_in
+  IFS='|' read -r pct reset_in <<< "$parsed"
 
   local bar_color
   bar_color=$(color_for_pct "$pct")

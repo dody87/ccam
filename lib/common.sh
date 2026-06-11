@@ -31,10 +31,10 @@ get_accounts() {
   done
 }
 
-# ─── macOS Keychain token ─────────────────────────────────────────────────────
+# ─── macOS Keychain credentials ───────────────────────────────────────────────
 # Uses the same key derivation as Claude Code:
 # sha256(config_dir)[:8] → keychain service name.
-get_token() {
+get_credentials() {
   local config_dir="$1"
 
   local hash
@@ -43,24 +43,64 @@ import hashlib, sys
 print(hashlib.sha256(sys.argv[1].encode()).hexdigest()[:8])
 " "$config_dir" 2>/dev/null)
 
-  [ -z "$hash" ] && { echo ""; return; }
+  [ -z "$hash" ] && return 2
 
   local svc="Claude Code-credentials-${hash}"
   local creds
-  creds=$(security find-generic-password -s "$svc" -w 2>/dev/null) || { echo ""; return; }
+  local error_file
+  error_file=$(mktemp)
+
+  if ! creds=$(security find-generic-password -s "$svc" -w 2>"$error_file"); then
+    local error
+    error=$(cat "$error_file")
+    rm -f "$error_file"
+
+    if [[ "$error" == *"could not be found in the keychain"* ]]; then
+      return 1
+    fi
+
+    return 2
+  fi
+
+  rm -f "$error_file"
+  printf '%s' "$creds"
+}
+
+# Output: "valid|expired|invalid|plan|access_token"
+parse_credentials() {
+  local credentials="$1"
 
   python3 -c "
 import sys, json, time
 try:
-    d = json.load(sys.stdin)
+    d = json.loads(sys.argv[1])
     oauth = d.get('claudeAiOauth', {})
-    expires = oauth.get('expiresAt', 0)
     token = oauth.get('accessToken', '')
+    refresh_token = oauth.get('refreshToken', '')
+    expires = int(oauth.get('expiresAt', 0) or 0)
+    subscription = str(oauth.get('subscriptionType', '') or '')
+
+    plan_names = {
+        'pro': 'Claude Pro',
+        'team': 'Claude Team',
+        'max': 'Claude Max',
+        'enterprise': 'Claude Enterprise',
+    }
+    plan = plan_names.get(subscription.lower(), subscription or 'Unknown')
+
     if token and int(time.time() * 1000) < expires:
-        print(token)
+        status = 'valid'
+    elif refresh_token:
+        status = 'expired'
+        token = ''
+    else:
+        status = 'invalid'
+        token = ''
+
+    print(f'{status}|{plan}|{token}')
 except:
-    pass
-" <<< "$creds" 2>/dev/null
+    print('invalid|Unknown|')
+" "$credentials" 2>/dev/null
 }
 
 # ─── Query usage API ──────────────────────────────────────────────────────────
@@ -75,7 +115,7 @@ fetch_usage() {
 }
 
 # ─── Parse usage response ─────────────────────────────────────────────────────
-# Output: "pct|plan|active|reset_in"
+# Output: "pct|reset_in"
 parse_usage() {
   local json="$1"
   [ -z "$json" ] && { echo "ERROR"; return; }
@@ -88,15 +128,19 @@ try:
     d = json.loads(sys.argv[1])
     fh  = d.get('five_hour', {})
     pct = int(fh.get('utilization', 0))
-    reset_at = fh.get('reset_at', '')
-    plan = d.get('plan', {}).get('name', 'unknown')
-    active = d.get('active_session', False)
+    reset_at = fh.get('resets_at') or fh.get('reset_at', '')
 
     if reset_at:
         dt = datetime.fromisoformat(reset_at.replace('Z', '+00:00'))
-        diff = dt - datetime.now(timezone.utc)
+        now_value = sys.argv[2]
+        now = (
+            datetime.fromisoformat(now_value.replace('Z', '+00:00'))
+            if now_value
+            else datetime.now(timezone.utc)
+        )
+        diff = dt - now
         mins = int(diff.total_seconds() / 60)
-        if mins > 60:
+        if mins >= 60:
             reset_str = f'{mins // 60}h {mins % 60}m'
         elif mins > 0:
             reset_str = f'{mins}m'
@@ -105,10 +149,10 @@ try:
     else:
         reset_str = 'N/A'
 
-    print(f'{pct}|{plan}|{active}|{reset_str}')
+    print(f'{pct}|{reset_str}')
 except:
     print('ERROR')
-" "$json" 2>/dev/null
+" "$json" "${CLAUDE_STATUS_NOW:-}" 2>/dev/null
 }
 
 # ─── Progress bar ─────────────────────────────────────────────────────────────

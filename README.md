@@ -25,6 +25,9 @@ Manage multiple Claude Code accounts on macOS — check usage at a glance and sw
 Claude Code stores credentials in the macOS Keychain under a key derived from the `CLAUDE_CONFIG_DIR` environment variable. By using separate directories (e.g. `~/.claude-personal`, `~/.claude-work`), each account gets its own isolated credentials and usage limits.
 
 `claude-status` reads the OAuth token for each detected account and queries `api.anthropic.com/api/oauth/usage` to show real-time utilization.
+It reads the plan from the account credential because the usage endpoint does not
+currently include plan information. Expired sessions are reported separately
+from accounts that have never authenticated.
 
 `claude-switch` activates an account by pointing `~/.claude` (a symlink) to the target config directory. The installed shell function reads that symlink and sets `CLAUDE_CONFIG_DIR`, so the bare `claude` command uses whichever account is active.
 
@@ -76,6 +79,9 @@ claude-status
 ```
 
 Shows usage bar (5-hour limit), plan name, and time until reset for every detected account. The active account is highlighted.
+
+If an OAuth access token has expired, open the account-specific command shown by
+`claude-status` (for example, `claude-work`) so Claude Code can refresh it.
 
 ### Switch accounts
 
