@@ -95,9 +95,22 @@ claude-switch work
 
 # List available accounts
 claude-switch --list
+
+# Permanently remove an inactive account
+claude-switch --remove work
+
+# Show all switch options
+claude-switch --help
 ```
 
 Switching creates a symlink `~/.claude → ~/.claude-<name>`. The installed shell function uses its target as `CLAUDE_CONFIG_DIR`, so the bare `claude` command immediately picks up the selected account.
+
+Both commands provide help with `--help` or `-h`:
+
+```bash
+claude-status --help
+claude-switch --help
+```
 
 ### Use a specific account directly
 
