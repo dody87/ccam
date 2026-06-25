@@ -114,6 +114,54 @@ fetch_usage() {
     -H "User-Agent: claude-code/2.0.32" 2>/dev/null
 }
 
+# ─── Refresh expired OAuth session ───────────────────────────────────────────
+refresh_expired_session() {
+  local config_dir="$1"
+
+  if [ "${CLAUDE_STATUS_DISABLE_AUTO_REFRESH:-}" = "1" ]; then
+    return 1
+  fi
+
+  python3 -c "
+import os, shutil, subprocess, sys
+
+config_dir = sys.argv[1]
+timeout = int(os.environ.get('CLAUDE_STATUS_REFRESH_TIMEOUT', '20') or '20')
+claude = os.environ.get('CLAUDE_STATUS_CLAUDE_CMD') or shutil.which('claude')
+
+if not claude:
+    sys.exit(1)
+
+env = os.environ.copy()
+env['CLAUDE_CONFIG_DIR'] = config_dir
+
+try:
+    result = subprocess.run(
+        [
+            claude,
+            '-p',
+            'Respond only: ok',
+            '--no-session-persistence',
+            '--max-budget-usd',
+            '0.01',
+            '--output-format',
+            'json',
+        ],
+        cwd=os.path.expanduser('~'),
+        env=env,
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        timeout=timeout,
+        check=False,
+    )
+except Exception:
+    sys.exit(1)
+
+sys.exit(0 if result.returncode == 0 else 1)
+" "$config_dir" 2>/dev/null
+}
+
 # ─── Parse usage response ─────────────────────────────────────────────────────
 # Output: "pct|reset_in"
 parse_usage() {

@@ -47,11 +47,32 @@ render_account() {
   IFS='|' read -r auth_status plan token <<< "$credential_info"
 
   if [ "$auth_status" = "expired" ]; then
-    echo -e "  ${YELLOW}⚠ Session expired${RESET} — run ${BOLD}claude-${label}${RESET} to refresh it"
-    echo -e "  ${DIM}Plan:${RESET}  ${plan}"
+    if [ "${CLAUDE_STATUS_DISABLE_AUTO_REFRESH:-}" != "1" ]; then
+      echo -ne "  ${DIM}Refreshing expired session...${RESET}\r"
+      refresh_expired_session "$config_dir" >/dev/null 2>&1 || true
+      credentials_error=0
+      credentials=$(get_credentials "$config_dir") || credentials_error=$?
+
+      if [ "$credentials_error" -eq 0 ]; then
+        credential_info=$(parse_credentials "$credentials")
+        IFS='|' read -r auth_status plan token <<< "$credential_info"
+      fi
+      echo -ne "                                      \r"
+    fi
+
+    if [ "$auth_status" = "expired" ]; then
+      echo -e "  ${YELLOW}⚠ Session expired${RESET} — run ${BOLD}claude-${label}${RESET} to refresh it"
+      echo -e "  ${DIM}Plan:${RESET}  ${plan}"
+      echo ""
+      return
+    fi
+  elif [ "$auth_status" != "valid" ]; then
+    echo -e "  ${YELLOW}⚠ Not authenticated${RESET} — run: ${BOLD}claude-${label}${RESET} then ${BOLD}/login${RESET}"
     echo ""
     return
-  elif [ "$auth_status" != "valid" ]; then
+  fi
+
+  if [ "$auth_status" != "valid" ]; then
     echo -e "  ${YELLOW}⚠ Not authenticated${RESET} — run: ${BOLD}claude-${label}${RESET} then ${BOLD}/login${RESET}"
     echo ""
     return

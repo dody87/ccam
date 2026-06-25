@@ -26,8 +26,10 @@ Claude Code stores credentials in the macOS Keychain under a key derived from th
 
 `claude-status` reads the OAuth token for each detected account and queries `api.anthropic.com/api/oauth/usage` to show real-time utilization.
 It reads the plan from the account credential because the usage endpoint does not
-currently include plan information. Expired sessions are reported separately
-from accounts that have never authenticated.
+currently include plan information. Expired sessions with a refresh token are
+refreshed automatically with a short non-interactive Claude Code call before
+usage is fetched. Accounts that have never authenticated are reported
+separately.
 
 `claude-switch` activates an account by pointing `~/.claude` (a symlink) to the target config directory. The installed shell function reads that symlink and sets `CLAUDE_CONFIG_DIR`, so the bare `claude` command uses whichever account is active.
 
@@ -80,8 +82,10 @@ claude-status
 
 Shows usage bar (5-hour limit), plan name, and time until reset for every detected account. The active account is highlighted.
 
-If an OAuth access token has expired, open the account-specific command shown by
+If an OAuth access token has expired, `claude-status` first tries to refresh it
+automatically. If that fails, open the account-specific command shown by
 `claude-status` (for example, `claude-work`) so Claude Code can refresh it.
+Set `CLAUDE_STATUS_DISABLE_AUTO_REFRESH=1` to skip the automatic refresh.
 
 ### Switch accounts
 

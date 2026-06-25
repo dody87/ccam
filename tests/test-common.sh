@@ -62,6 +62,44 @@ keychain_error_status=$?
 set -e
 assert_equal "2" "$keychain_error_status" "Keychain access error"
 
+tmp_dir=$(mktemp -d)
+trap 'rm -rf "$tmp_dir"' EXIT
+
+fake_claude="$tmp_dir/claude"
+cat > "$fake_claude" <<'EOF'
+#!/bin/bash
+printf '%s\n' "$CLAUDE_CONFIG_DIR" > "$CLAUDE_REFRESH_LOG"
+exit 0
+EOF
+chmod +x "$fake_claude"
+
+export CLAUDE_STATUS_CLAUDE_CMD="$fake_claude"
+export CLAUDE_REFRESH_LOG="$tmp_dir/refresh.log"
+set +e
+refresh_expired_session "/tmp/claude-refresh-account"
+refresh_status=$?
+set -e
+assert_equal "0" "$refresh_status" "refresh helper succeeds with claude command"
+assert_equal "/tmp/claude-refresh-account" "$(cat "$CLAUDE_REFRESH_LOG")" "refresh helper sets CLAUDE_CONFIG_DIR"
+
+export CLAUDE_STATUS_DISABLE_AUTO_REFRESH=1
+set +e
+refresh_expired_session "/tmp/claude-refresh-disabled"
+disabled_refresh_status=$?
+set -e
+assert_equal "1" "$disabled_refresh_status" "refresh helper respects disable flag"
+unset CLAUDE_STATUS_DISABLE_AUTO_REFRESH
+
+export CLAUDE_STATUS_CLAUDE_CMD="$tmp_dir/missing-claude"
+set +e
+refresh_expired_session "/tmp/claude-refresh-missing"
+missing_claude_status=$?
+set -e
+assert_equal "1" "$missing_claude_status" "refresh helper fails when claude is missing"
+
+unset CLAUDE_STATUS_CLAUDE_CMD
+unset CLAUDE_REFRESH_LOG
+
 if [ "$failures" -ne 0 ]; then
   exit 1
 fi
