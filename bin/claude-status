@@ -4,6 +4,24 @@
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 source "$SCRIPT_DIR/lib/common.sh"
 
+# ─── Help ─────────────────────────────────────────────────────────────────────
+
+print_help() {
+  echo ""
+  echo -e "${BOLD}Show usage for all detected Claude Code accounts.${RESET}"
+  echo ""
+  echo -e "${BOLD}Usage:${RESET}"
+  echo "  claude-status [option]"
+  echo ""
+  echo -e "${BOLD}Options:${RESET}"
+  echo "  -h, --help    Show this help message"
+  echo ""
+  echo -e "${BOLD}Examples:${RESET}"
+  echo "  claude-status"
+  echo "  claude-status --help"
+  echo ""
+}
+
 # ─── Render helpers ───────────────────────────────────────────────────────────
 
 print_header() {
@@ -109,6 +127,13 @@ render_account() {
 }
 
 # ─── Main ─────────────────────────────────────────────────────────────────────
+
+case "${1:-}" in
+  --help|-h)
+    print_help
+    exit 0
+    ;;
+esac
 
 print_header
 
