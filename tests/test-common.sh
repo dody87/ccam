@@ -33,10 +33,12 @@ assert_equal "invalid|Unknown|" "$(parse_credentials '{}')" "missing OAuth crede
 assert_equal "valid|custom|secret" "$(parse_credentials "$(printf '{"claudeAiOauth":{"accessToken":"secret","expiresAt":%s,"subscriptionType":"custom"}}' "$future_ms")")" "unknown plan value"
 
 export CLAUDE_STATUS_NOW="2026-06-11T00:00:00+00:00"
-assert_equal "61|1h 30m" "$(parse_usage '{"five_hour":{"utilization":61.9,"resets_at":"2026-06-11T01:30:00+00:00"}}')" "current resets_at field"
-assert_equal "61|1h 30m" "$(parse_usage '{"five_hour":{"utilization":61.9,"reset_at":"2026-06-11T01:30:00+00:00"}}')" "legacy reset_at field"
-assert_equal "20|available now" "$(parse_usage '{"five_hour":{"utilization":20,"resets_at":"2026-06-10T23:00:00+00:00"}}')" "past reset"
-assert_equal "20|N/A" "$(parse_usage '{"five_hour":{"utilization":20}}')" "missing reset"
+assert_equal "61|1h 30m||" "$(parse_usage '{"five_hour":{"utilization":61.9,"resets_at":"2026-06-11T01:30:00+00:00"}}')" "current resets_at field"
+assert_equal "61|1h 30m||" "$(parse_usage '{"five_hour":{"utilization":61.9,"reset_at":"2026-06-11T01:30:00+00:00"}}')" "legacy reset_at field"
+assert_equal "20|available now||" "$(parse_usage '{"five_hour":{"utilization":20,"resets_at":"2026-06-10T23:00:00+00:00"}}')" "past reset"
+assert_equal "20|N/A||" "$(parse_usage '{"five_hour":{"utilization":20}}')" "missing reset"
+assert_equal "61|1h 30m|34|3d 4h" "$(parse_usage '{"five_hour":{"utilization":61.9,"resets_at":"2026-06-11T01:30:00+00:00"},"weekly":{"utilization":34.8,"resets_at":"2026-06-14T04:00:00+00:00"}}')" "weekly usage and reset"
+assert_equal "61|1h 30m|34|" "$(parse_usage '{"five_hour":{"utilization":61.9,"resets_at":"2026-06-11T01:30:00+00:00"},"weekly":{"utilization":34.8}}')" "weekly usage without reset"
 assert_equal "ERROR" "$(parse_usage 'not-json')" "invalid usage response"
 unset CLAUDE_STATUS_NOW
 

@@ -109,8 +109,8 @@ render_account() {
     return
   fi
 
-  local pct reset_in
-  IFS='|' read -r pct reset_in <<< "$parsed"
+  local pct reset_in weekly_pct weekly_reset_in
+  IFS='|' read -r pct reset_in weekly_pct weekly_reset_in <<< "$parsed"
 
   local bar_color
   bar_color=$(color_for_pct "$pct")
@@ -123,6 +123,13 @@ render_account() {
   echo -e "  ${bar_color}${bar}${RESET} ${BOLD}${pct}%${RESET} used"
   echo -e "  ${DIM}Plan:${RESET}  ${plan}"
   echo -e "  ${DIM}Reset:${RESET} in ${reset_in}"
+  if [ -n "$weekly_pct" ]; then
+    if [ -n "$weekly_reset_in" ]; then
+      echo -e "  ${DIM}Weekly:${RESET} ${weekly_pct}% used, resets in ${weekly_reset_in}"
+    else
+      echo -e "  ${DIM}Weekly:${RESET} ${weekly_pct}% used"
+    fi
+  fi
   echo ""
 }
 

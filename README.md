@@ -12,12 +12,14 @@ Manage multiple Claude Code accounts on macOS — check usage at a glance and sw
   ████████████░░░░░░░░ 62% used
   Plan:  Claude Pro
   Reset: in 1h 23m
+  Weekly: 34% used, resets in 2d 4h
 
 ▸ work
   ~/.claude-work
   ███░░░░░░░░░░░░░░░░░ 18% used
   Plan:  Claude Team
   Reset: in 3h 41m
+  Weekly: 12% used, resets in 4d 1h
 ```
 
 ## How it works
@@ -80,7 +82,7 @@ That's it. The `claude-<name>` aliases are generated automatically for every `~/
 claude-status
 ```
 
-Shows usage bar (5-hour limit), plan name, and time until reset for every detected account. The active account is highlighted.
+Shows usage bar (5-hour limit), plan name, time until reset, and weekly usage when the usage endpoint provides it for every detected account. The active account is highlighted.
 
 If an OAuth access token has expired, `claude-status` first tries to refresh it
 automatically. If that fails, open the account-specific command shown by

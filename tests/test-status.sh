@@ -65,7 +65,7 @@ chmod +x "$fake_bin/claude"
 
 cat > "$fake_bin/curl" <<'EOF'
 #!/bin/bash
-printf '{"five_hour":{"utilization":42,"resets_at":"2026-06-11T01:30:00+00:00"}}'
+printf '{"five_hour":{"utilization":42,"resets_at":"2026-06-11T01:30:00+00:00"},"weekly":{"utilization":37,"resets_at":"2026-06-14T04:00:00+00:00"}}'
 EOF
 chmod +x "$fake_bin/curl"
 
@@ -82,6 +82,8 @@ output=$("$ROOT/bin/claude-status")
 assert_contains "42%" "$output" "expired account refreshes and shows usage percentage"
 assert_contains "used" "$output" "expired account refreshes and shows usage label"
 assert_contains "Plan:" "$output" "refreshed account keeps plan output"
+assert_contains "Weekly:" "$output" "weekly usage label is shown"
+assert_contains "37% used, resets in 3d 4h" "$output" "weekly usage includes reset when available"
 assert_equal "$fake_home/.claude-work" "$(cat "$CLAUDE_REFRESH_LOG")" "status refresh uses account config dir"
 
 rm -f "$CLAUDE_REFRESH_MARKER" "$CLAUDE_REFRESH_LOG"

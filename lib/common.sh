@@ -163,7 +163,7 @@ sys.exit(0 if result.returncode == 0 else 1)
 }
 
 # ─── Parse usage response ─────────────────────────────────────────────────────
-# Output: "pct|reset_in"
+# Output: "pct|reset_in|weekly_pct|weekly_reset_in"
 parse_usage() {
   local json="$1"
   [ -z "$json" ] && { echo "ERROR"; return; }
@@ -172,32 +172,53 @@ parse_usage() {
 import sys, json
 from datetime import datetime, timezone
 
+def format_reset(reset_at, now):
+    if not reset_at:
+        return 'N/A'
+
+    dt = datetime.fromisoformat(reset_at.replace('Z', '+00:00'))
+    diff = dt - now
+    mins = int(diff.total_seconds() / 60)
+
+    if mins >= 1440:
+        days = mins // 1440
+        hours = (mins % 1440) // 60
+        return f'{days}d {hours}h'
+    if mins >= 60:
+        return f'{mins // 60}h {mins % 60}m'
+    if mins > 0:
+        return f'{mins}m'
+    return 'available now'
+
 try:
     d = json.loads(sys.argv[1])
+    now_value = sys.argv[2]
+    now = (
+        datetime.fromisoformat(now_value.replace('Z', '+00:00'))
+        if now_value
+        else datetime.now(timezone.utc)
+    )
+
     fh  = d.get('five_hour', {})
     pct = int(fh.get('utilization', 0))
     reset_at = fh.get('resets_at') or fh.get('reset_at', '')
+    reset_str = format_reset(reset_at, now)
 
-    if reset_at:
-        dt = datetime.fromisoformat(reset_at.replace('Z', '+00:00'))
-        now_value = sys.argv[2]
-        now = (
-            datetime.fromisoformat(now_value.replace('Z', '+00:00'))
-            if now_value
-            else datetime.now(timezone.utc)
-        )
-        diff = dt - now
-        mins = int(diff.total_seconds() / 60)
-        if mins >= 60:
-            reset_str = f'{mins // 60}h {mins % 60}m'
-        elif mins > 0:
-            reset_str = f'{mins}m'
-        else:
-            reset_str = 'available now'
-    else:
-        reset_str = 'N/A'
+    weekly = {}
+    for key in ('weekly', 'week', 'seven_day', 'seven_days'):
+        value = d.get(key)
+        if isinstance(value, dict):
+            weekly = value
+            break
 
-    print(f'{pct}|{reset_str}')
+    weekly_pct = ''
+    weekly_reset = ''
+    if weekly and weekly.get('utilization') is not None:
+        weekly_pct = str(int(weekly.get('utilization', 0)))
+        weekly_reset_at = weekly.get('resets_at') or weekly.get('reset_at', '')
+        weekly_reset = format_reset(weekly_reset_at, now) if weekly_reset_at else ''
+
+    print(f'{pct}|{reset_str}|{weekly_pct}|{weekly_reset}')
 except:
     print('ERROR')
 " "$json" "${CLAUDE_STATUS_NOW:-}" 2>/dev/null
