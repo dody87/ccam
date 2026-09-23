@@ -85,6 +85,7 @@ _claude_account_aliases() {
   local d label
   for d in "$HOME"/.claude-*/; do
     [ -d "$d" ] || continue
+    case "$d" in *.lock/) continue ;; esac
     label="${d##*/.claude-}"
     label="${label%/}"
     alias "claude-${label}"="CLAUDE_CONFIG_DIR=${d%/} command claude"

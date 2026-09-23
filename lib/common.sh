@@ -13,12 +13,13 @@ RESET='\033[0m'
 
 # ─── Discover accounts ────────────────────────────────────────────────────────
 # Scans ~/.claude-* and returns "label:path" pairs, one per line.
-# Excludes ~/.claude (Claude Code's default dir, no suffix).
+# Excludes ~/.claude (Claude Code's default dir, no suffix) and *.lock dirs
+# (transient lock directories Claude Code creates next to each account dir).
 get_accounts() {
   local dirs=()
   while IFS= read -r d; do
     dirs+=("$d")
-  done < <(find "$HOME" -maxdepth 1 -type d -name '.claude-*' | sort)
+  done < <(find "$HOME" -maxdepth 1 -type d -name '.claude-*' ! -name '*.lock' | sort)
 
   if [ ${#dirs[@]} -eq 0 ]; then
     return
